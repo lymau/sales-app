@@ -185,7 +185,7 @@ with tab2:
 
         sales_notes = st.text_area("Catatan (Notes)", value=lead.get("sales_notes", ""), height=100, key="update_notes_from_sales")
         selling_price = st.number_input("Selling Price", min_value=0, step=10000, key="update_selling_price")
-        stage = st.selectbox("Stage", options=["Open", "Closed Won", "Closed Lost"], index=["Open", "Closed Won", "Closed Lost"].index(lead.get("stage", "Open")), key="update_stage")
+        stage = st.selectbox("Stage", options=["Open", "Closed Won", "Closed Lost"], key="update_stage")
         submit_button = st.form_submit_button("Update Lead")
 
         if submit_button:
