@@ -129,76 +129,65 @@ def get_single_lead(search_params):
 st.title("Sales App - SISINDOKOM")
 st.markdown("---")
 
-tab1, tab2 = st.tabs(["Lihat Semua Leads", "Update Lead"])
+tab1, tab2 = st.tabs(["View All Opportunities", "Update Opportunity"])
 
 with tab1:
-    st.header("Semua Data Leads")
-    if st.button("Refresh Leads"):
-        with st.spinner("Mengambil semua leads..."):
+    st.header("All Opportunities Data")
+    if st.button("Refresh Opportunities"):
+        with st.spinner("Fetching all opportunities..."):
             response = get_all_leads()
             if response and response.get("status") == 200:
                 leads_data = response.get("data")
                 if leads_data:
-                    st.write(f"Ditemukan {len(leads_data)} leads.")
+                    st.write(f"Found {len(leads_data)} opportunities.")
                     st.dataframe(leads_data)
                 else:
-                    st.info("Tidak ada data leads ditemukan.")
+                    st.info("No opportunities found.")
             else:
-                st.error(response.get("message", "Gagal mengambil semua leads."))
+                st.error(response.get("message", "Failed to fetch opportunities."))
                 st.json(response)
 
 with tab2:
-    st.header("Update Lead")
-    uid = st.text_input("Masukkan UID untuk mencari lead", key="uid")
-    update_button = st.button("Ambil Data Lead")
+    st.header("Update Opportunity")
+    opportunity_id = st.text_input("Enter OpportunityID to search opportunity", key="opportunity_id")
+    update_button = st.button("Fetch Opportunity Data")
     lead = {}
-    if update_button and uid:
-        with st.spinner(f"Mengambil data lead dengan uid: {uid}..."):
-            response = get_single_lead({"uid": uid})
+    if update_button and opportunity_id:
+        with st.spinner(f"Mengambil data opportunity dengan id: {opportunity_id}..."):
+            response = get_single_lead({"opportunity_id": opportunity_id})
             if response and response.get("status") == 200:
                 lead_data = response.get("data")
                 if lead_data:
                     lead = lead_data[0]
-                    st.write(f"🆔 **Data Lead dengan UID:** {uid}")
-                    st.write(f"👤 **Inputter:** {lead.get('presales_name', 'Unknown')}")
-                    st.write(f"🧑‍💼 **Account Manager:** {lead.get('responsible_name', 'Unknown')}")
+                    st.write(f"🆔 **Data Opportunity dengan UID:** {opportunity_id}")
+                    st.write(f"👤 **Sales Group:** {lead.get('salesgroup_id', 'Unknown')}")
+                    st.write(f"👤 **Sales Name:** {lead.get('sales_name', 'Unknown')}")
                     st.write(f"🏷️ **Opportunity Name:** {lead.get('opportunity_name', 'Unknown')}")
-                    st.write(f"🏛️ **Pillar:** {lead.get('pillar', 'Unknown')}")
-                    st.write(f"🧩 **Solution:** {lead.get('solution', 'Unknown')}")
-                    st.write(f"🛠️ **Service:** {lead.get('service', 'Unknown')}")
-                    st.write(f"🏷️ **Brand:** {lead.get('brand', 'Unknown')}")
-                    st.write(f"📡 **Channel:** {lead.get('channel', 'Unknown')}")
-                    st.write(f"🏢 **Company:** {lead.get('company_name', 'Unknown')}")
-                    st.write(f"🏭 **Vertical Industry:** {lead.get('vertical_industry', 'Unknown')}")
-                    st.write(f"💰 **Cost:** {lead.get('cost', 0)}")
-                    st.write(f"📝 **Notes:** {lead.get('notes', 'No notes available')}")
-                    st.write(f"📅 **Created At:** {lead.get('created_at', 'Unknown')}")
-                    st.write(f"⏰ **Updated At:** {lead.get('updated_at', 'Unknown')}")
                 else:
-                    st.warning("Tidak ada lead ditemukan dengan UUID tersebut.")
+                    st.warning("No opportunity found with the given UID.")
             else:
-                st.error(response.get("message", "Gagal mengambil data lead."))
-                st.json(response)   
+                st.error(response.get("message", "Failed to fetch opportunity data."))
+                st.json(response)
     with st.form(key="update_lead_form"):
         # editable fields
-        st.subheader("Update Lead Details")
+        st.subheader("Update Opportunity Details")
 
-        sales_notes = st.text_area("Catatan (Notes)", value=lead.get("sales_notes", ""), height=100, key="update_notes_from_sales")
+        sales_notes = st.text_area("Notes", value=lead.get("sales_notes", ""), height=100, key="update_notes_from_sales")
         selling_price = st.number_input("Selling Price", min_value=0, step=10000, key="update_selling_price")
         stage = st.selectbox("Stage", options=["Open", "Closed Won", "Closed Lost"], key="update_stage")
-        submit_button = st.form_submit_button("Update Lead")
+        submit_button = st.form_submit_button("Update Opportunity")
 
         if submit_button:
             update_data = {
-                            "uid": uid,
+                            "opportunity_id": opportunity_id,
                             "sales_notes": sales_notes,
                             "selling_price": selling_price,
                             "stage": stage,
                         }
             st.write(update_data)
-            with st.spinner(f"Memperbarui lead {uid}..."):
+            with st.spinner(f"Updating opportunity {opportunity_id}..."):
                 update_response = update_lead(update_data)
                 if update_response and update_response.get("status") == 200:
                     st.success(update_response.get("message"))
                 else:
-                    st.error(update_response.get("message", "Gagal memperbarui lead."))
+                    st.error(update_response.get("message", "Failed to update opportunity."))
