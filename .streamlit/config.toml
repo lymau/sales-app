@@ -1,0 +1,10 @@
+[theme]
+# Mengubah "dark" menjadi "light" akan mengubah tema dasar aplikasi
+base="light"
+
+# Warna-warna berikut adalah opsional, tetapi disarankan untuk tema terang
+primaryColor="#4F8BF9"
+backgroundColor="#FFFFFF"
+secondaryBackgroundColor="#F0F2F6"
+textColor="#262730"
+font="sans serif"
