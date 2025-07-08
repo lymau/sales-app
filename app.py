@@ -84,7 +84,7 @@ def get_all_leads():
         st.error("Harap perbarui APPS_SCRIPT_API_URL dengan URL Web App Anda!")
         return {"status": 500, "message": "Konfigurasi URL API belum lengkap."}
 
-    url = f"{APPS_SCRIPT_API_URL}?action=leads"
+    url = f"{APPS_SCRIPT_API_URL}?action=leadBySales"
     try:
         response = requests.get(url)
         response.raise_for_status()
