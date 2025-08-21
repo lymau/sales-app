@@ -127,6 +127,21 @@ def clean_data_for_display(data):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     return df
+
+def filter_data_for_user(data, user_name):
+    """
+    Memfilter data berdasarkan peran pengguna.
+    - Super user (Ridho, Budiono) dapat melihat semua data grup mereka.
+    - Pengguna lain hanya dapat melihat data mereka sendiri.
+    """
+    super_users = ["Ridho Danu S.A", "Budiono Untoro", "Neli Nursyamsyiah", "Tommy S. Purnomo", "Lie Suherman"]
+    
+    if user_name in super_users:
+        # Jika super user, kembalikan semua data tanpa filter tambahan
+        return data 
+    else:
+        # Jika bukan super user, filter data berdasarkan 'sales_name'
+        return [item for item in data if item.get('sales_name') == user_name]
     
 
 # ANTARMUKA STREAMLIT
@@ -199,27 +214,36 @@ def main_app():
         st.header("All Opportunity Solutions (Detailed View)")
         if st.button("Refresh Opportunities"):
             st.cache_data.clear()
+            st.rerun()
 
         with st.spinner(f"Fetching opportunities for {sales_group}..."):
-            leads_data = get_data('leads', sales_group)
+            # 1. Ambil data mentah dari API
+            raw_leads_data = get_data('leads', sales_group)
+            # 2. Terapkan filter berdasarkan peran pengguna
+            leads_data = filter_data_for_user(raw_leads_data, sales_name)
+            
             if leads_data:
-                st.write(f"Found {len(leads_data)} solutions.")
+                st.write(f"Found {len(leads_data)} solutions for you.")
                 st.dataframe(clean_data_for_display(leads_data))
             else:
-                st.info("No opportunities found for your group.")
+                st.info("No opportunities found for you.")
     
     with tab2:
         st.header("Search Opportunities")
         
-        search_keywords = ["Opportunity Name","Company", "Sales Name", "Presales Account Manager", "Pillar", "Solution", "Brand"]
-        search_by_option = st.selectbox("Search By", search_keywords, key="search_option")
+        # Ambil data mentah dan filter untuk mengisi opsi pencarian
+        raw_all_leads_data = get_data('leads', sales_group)
+        all_leads_data = filter_data_for_user(raw_all_leads_data, sales_name)
 
-        search_query = ""
-        # Mengambil data yang sudah terfilter untuk mengisi opsi pencarian
-        all_leads_data = get_data('leads', sales_group)
         if all_leads_data:
             df_master = pd.DataFrame(all_leads_data)
+            search_keywords = ["Opportunity Name","Company", "Sales Name", "Presales Account Manager", "Pillar", "Solution", "Brand"]
+            search_by_option = st.selectbox("Search By", search_keywords, key="search_option")
+
+            search_query = ""
             if not df_master.empty:
+                # Opsi pencarian akan disesuaikan dengan data yang bisa dilihat pengguna
+                unique_options = lambda col: sorted(df_master[col].unique()) if col in df_master else []
                 if search_by_option == "Opportunity Name":
                     options = sorted(df_master['opportunity_name'].unique())
                     search_query = st.selectbox("Select Opportunity Name", options, key="search_opportunity_name", index=None)
@@ -241,6 +265,12 @@ def main_app():
                 elif search_by_option == "Brand":
                     options = sorted(df_master['brand'].unique())
                     search_query = st.selectbox("Select Brand", options, key="search_brand", index=None)
+                else:
+                    col_map = {
+                        "Sales Name": "sales_name", "Presales Account Manager": "responsible_name",
+                        "Pillar": "pillar", "Solution": "solution", "Brand": "brand"
+                    }
+                    search_query = st.selectbox(f"Select {search_by_option}", unique_options(col_map.get(search_by_option)), key=f"search_{col_map.get(search_by_option)}", index=None)
 
         if st.button("Search"):
             if search_query:
@@ -252,25 +282,30 @@ def main_app():
                 search_params = {param_map[search_by_option]: search_query}
                 
                 with st.spinner(f"Searching for '{search_query}'..."):
-                    response = get_single_lead(search_params, sales_group)
-                    if response and response.get("status") == 200:
-                        found_leads = response.get("data")
-                        if found_leads:
-                            st.success(f"Found {len(found_leads)} matching solution(s).")
-                            st.dataframe(clean_data_for_display(found_leads))
+                        # Pencarian tetap menggunakan sales_group untuk efisiensi di backend
+                        response = get_single_lead(search_params, sales_group)
+                        if response and response.get("status") == 200:
+                            # Hasil pencarian juga difilter lagi sesuai peran
+                            found_leads_raw = response.get("data")
+                            found_leads = filter_data_for_user(found_leads_raw, sales_name)
+                            
+                            if found_leads:
+                                st.success(f"Found {len(found_leads)} matching solution(s).")
+                                st.dataframe(clean_data_for_display(found_leads))
+                            else:
+                                st.info("No solution found with the given criteria in your scope.")
                         else:
-                            st.info("No solution found with the given criteria.")
-                    else:
-                        st.error(response.get("message", "Failed to search."))
+                            st.error(response.get("message", "Failed to search."))
             else:
                 st.warning("Please select a search term.")
 
     with tab3:
         st.header("Update Opportunity Stage & Notes")
-        all_opps = get_data('leadBySales', sales_group)
+        raw_all_opps = get_data('leadBySales', sales_group)
+        all_opps = filter_data_for_user(raw_all_opps, sales_name)
+
         if all_opps:
             opp_options = {f"{opp.get('opportunity_name', 'N/A')} (ID: {opp.get('opportunity_id')})": opp.get('opportunity_id') for opp in all_opps}
-            
             selected_opp_display = st.selectbox("Choose Opportunity to Update", options=opp_options.keys(), index=None, placeholder="Pilih opportunity...")
 
             if selected_opp_display:
@@ -278,9 +313,6 @@ def main_app():
                 lead_data = next((item for item in all_opps if item.get('opportunity_id') == opportunity_id), None)
 
                 if lead_data:
-                    st.write(f"**Sales Group:** {lead_data.get('salesgroup_id', 'N/A')}")
-                    st.write(f"**Sales Name:** {lead_data.get('sales_name', 'N/A')}")
-
                     with st.form(key="update_stage_form"):
                         stage_options = ["Open", "Closed Won", "Closed Lost"]
                         current_stage = lead_data.get('stage', 'Open')
@@ -295,29 +327,30 @@ def main_app():
                                 if response and response.get("status") == 200:
                                     st.success(response.get("message"))
                                     st.cache_data.clear()
+                                    st.rerun()
                                 else:
                                     st.error(response.get("message", "Failed to update."))
         else:
-            st.warning("Could not load opportunities list for your group.")
+            st.warning("Could not load opportunities list for you.")
 
     with tab4:
         st.header("Update Selling Price per Solution")
-        all_opps_price = get_data('leadBySales', sales_group)
+        raw_all_opps_price = get_data('leadBySales', sales_group)
+        all_opps_price = filter_data_for_user(raw_all_opps_price, sales_name)
+
         if all_opps_price:
             opp_options_price = {f"{opp.get('opportunity_name', 'N/A')} (ID: {opp.get('opportunity_id')})": opp.get('opportunity_id') for opp in all_opps_price}
-            
             selected_opp_display_price = st.selectbox("Choose Opportunity to Update Price", options=opp_options_price.keys(), index=None, placeholder="Pilih opportunity...")
 
             if selected_opp_display_price:
                 opportunity_id_price = opp_options_price[selected_opp_display_price]
                 
                 with st.spinner("Fetching solution details..."):
-                    lines_to_update = get_single_lead({"opportunity_id": opportunity_id_price}, sales_group).get('data', [])
+                    # Data detail juga perlu difilter
+                    lines_to_update_raw = get_single_lead({"opportunity_id": opportunity_id_price}, sales_group).get('data', [])
+                    lines_to_update = filter_data_for_user(lines_to_update_raw, sales_name)
                 
                 if lines_to_update:
-                    general_info = lines_to_update[0]
-                    st.subheader("Opportunity Details")
-                    
                     with st.form(key="update_price_form"):
                         price_inputs = {}
                         for i, item in enumerate(lines_to_update):
@@ -326,14 +359,8 @@ def main_app():
                                 st.write(f"**Pillar:** {item.get('pillar', 'N/A')}")
                                 st.write(f"**Solution:** {item.get('solution', 'N/A')}")
                                 st.write(f"**Brand:** {item.get('brand', 'N/A')}")
-                                st.markdown("---")
-                                
                                 uid = item.get('uid', i)
-                                try:
-                                    current_price = int(float(item.get('selling_price')))
-                                except (ValueError, TypeError):
-                                    current_price = 0
-
+                                current_price = int(float(item.get('selling_price', 0)))
                                 price_inputs[uid] = st.number_input("Input New Selling Price", min_value=0, value=current_price, step=10000, key=f"price_{uid}")
                         
                         if st.form_submit_button("Update All Selling Prices"):
@@ -357,6 +384,7 @@ def main_app():
                             if success_count > 0: st.success(f"{success_count} dari {total_solutions} harga solusi berhasil diupdate.")
                             if error_count > 0: st.error(f"{error_count} dari {total_solutions} harga solusi gagal diupdate.")
                             st.cache_data.clear()
+                            st.rerun()
                 else:
                     st.warning("No solution details found for this opportunity.")
         else:
@@ -371,20 +399,14 @@ def password_page():
     st.header("Sales App Authentication")
     st.info("Please select your name and enter your password.")
 
-    # Ambil daftar nama sales dari backend
     sales_names = get_sales_names()
-
     if not sales_names:
         st.error("Could not load sales user list. Please check the backend connection.")
         return
 
     with st.form("password_form"):
-        # Dropdown untuk memilih nama
         selected_name = st.selectbox("Select Your Name", options=sorted(sales_names))
-        
-        # Input untuk password
         password = st.text_input("Password", type="password")
-        
         submitted = st.form_submit_button("Enter")
 
         if submitted:
@@ -392,7 +414,6 @@ def password_page():
                 st.warning("Please select your name and enter your password.")
             else:
                 with st.spinner("Verifying..."):
-                    # Kirim nama dan password untuk validasi
                     response = validate_password(selected_name, password)
                 
                 if response and response.get("status") == 200:
@@ -405,7 +426,7 @@ def password_page():
 # ROUTER APLIKASI
 # ==============================================================================
 
-if st.session_state.group_info:
+if st.session_state.get('group_info'):
     main_app()
 else:
     password_page()
