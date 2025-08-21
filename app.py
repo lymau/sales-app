@@ -20,16 +20,42 @@ if 'group_info' not in st.session_state:
 # FUNGSI-FUNGSI API (Dengan Caching)
 # ==============================================================================
 
-def validate_password(password):
-    """Memvalidasi password melalui backend dan mendapatkan Sales Group."""
+def get_sales_names():
+    """Mengambil daftar nama sales dari backend."""
+    url = f"{APPS_SCRIPT_API_URL}?action=getSalesNames"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        json_data = response.json()
+        if json_data.get("status") == 200 and json_data.get("data"):
+            # Ambil hanya kolom 'name' dari data yang diterima
+            return [user['name'] for user in json_data['data']]
+        return []
+    except (requests.exceptions.RequestException, json.JSONDecodeError):
+        return []
+
+def validate_password(sales_name, password): # <-- UBAH PARAMETER
+    """Memvalidasi NAMA & PASSWORD melalui backend."""
     url = f"{APPS_SCRIPT_API_URL}?action=validateAppPassword"
-    payload = {"password": password}
+    # Payload sekarang berisi nama dan password
+    payload = {"name": sales_name, "password": password} 
     headers = {"Content-Type": "application/json"}
     try:
         response = requests.post(url, data=json.dumps(payload), headers=headers)
         return response.json()
     except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
         return {"status": 500, "message": f"Authentication request error: {e}"}
+    
+def change_password(name, old_password, new_password):
+    """Mengirim permintaan untuk mengubah password user."""
+    url = f"{APPS_SCRIPT_API_URL}?action=changePassword"
+    payload = {"name": name, "oldPassword": old_password, "newPassword": new_password}
+    headers = {"Content-Type": "application/json"}
+    try:
+        response = requests.post(url, data=json.dumps(payload), headers=headers)
+        return response.json()
+    except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
+        return {"status": 500, "message": f"Password change request error: {e}"}
 
 @st.cache_data(ttl=300)
 def get_data(action: str, sales_group: str):
@@ -113,15 +139,59 @@ if 'lines_to_update_price' not in st.session_state:
     st.session_state.lines_to_update_price = None
 
 def main_app():
-    sales_group = st.session_state.group_info['salesGroup']
-    
-    st.title(f"Sales App - {sales_group}")
-    st.markdown("---")
+    ## --- PERUBAHAN DIMULAI DI SINI ---
 
-    if st.sidebar.button("Logout"):
-        st.session_state.group_info = None
-        st.cache_data.clear()
-        st.rerun()
+    # Mengambil data sesi dengan aman
+    group_info = st.session_state.get('group_info', {})
+    sales_group = group_info.get('salesGroup')
+    sales_name = group_info.get('salesName', 'User') # Ambil nama sales, default 'User'
+
+    # Menampilkan informasi user dan tombol logout di sidebar
+    with st.sidebar:
+        st.subheader(f"Welcome, {sales_name}")
+        st.write(f"**Group:** {sales_group}")
+        st.markdown("---")
+        if st.button("Logout"):
+            st.session_state.group_info = None
+            st.cache_data.clear()
+            st.rerun()
+
+        with st.expander("Change Password"):
+            with st.form("change_password_form", clear_on_submit=True):
+                old_password = st.text_input("Old Password", type="password", key="old_pass")
+                new_password = st.text_input("New Password", type="password", key="new_pass")
+                submitted = st.form_submit_button("Update Password")
+
+                if submitted:
+                    if not old_password or not new_password:
+                        st.warning("Please fill in both password fields.")
+                    else:
+                        with st.spinner("Updating password..."):
+                            response = change_password(sales_name, old_password, new_password)
+                        
+                        # --- INI BAGIAN YANG DIUBAH ---
+                        if response.get("status") == 200:
+                            st.success("Password berhasil diubah. Anda akan dialihkan ke halaman login.")
+                            # Tunggu sebentar agar user bisa membaca pesan
+                            import time
+                            time.sleep(2) 
+                            
+                            # Logout pengguna dengan membersihkan session state
+                            st.session_state.group_info = None
+                            st.cache_data.clear()
+                            
+                            # Paksa aplikasi untuk menjalankan ulang dari awal (kembali ke halaman login)
+                            st.rerun() 
+                        else:
+                            st.error(response.get("message", "Failed to change password."))
+
+    # Pengecekan sesi yang valid
+    if not sales_group:
+        st.error("Login session is invalid. Please log out and log in again.")
+        # Tombol logout di sidebar sudah menangani ini, jadi blok ini hanya untuk error
+        return
+
+    st.title(f"Sales App - {sales_group}")
 
     tab1, tab2, tab3, tab4 = st.tabs(["View All Opportunities", "Search Opportunity", "Update Stage & Notes", "Update Selling Price"])
 
@@ -299,21 +369,37 @@ def main_app():
 def password_page():
     """Menampilkan halaman untuk input password."""
     st.header("Sales App Authentication")
-    st.info("Please enter the password for your sales group.")
+    st.info("Please select your name and enter your password.")
+
+    # Ambil daftar nama sales dari backend
+    sales_names = get_sales_names()
+
+    if not sales_names:
+        st.error("Could not load sales user list. Please check the backend connection.")
+        return
 
     with st.form("password_form"):
+        # Dropdown untuk memilih nama
+        selected_name = st.selectbox("Select Your Name", options=sorted(sales_names))
+        
+        # Input untuk password
         password = st.text_input("Password", type="password")
+        
         submitted = st.form_submit_button("Enter")
 
         if submitted:
-            with st.spinner("Verifying..."):
-                response = validate_password(password)
-            
-            if response and response.get("status") == 200:
-                st.session_state.group_info = response.get("data")
-                st.rerun()
+            if not selected_name or not password:
+                st.warning("Please select your name and enter your password.")
             else:
-                st.error(response.get("message", "Incorrect password or server error."))
+                with st.spinner("Verifying..."):
+                    # Kirim nama dan password untuk validasi
+                    response = validate_password(selected_name, password)
+                
+                if response and response.get("status") == 200:
+                    st.session_state.group_info = response.get("data")
+                    st.rerun()
+                else:
+                    st.error(response.get("message", "Incorrect credentials or server error."))
 
 # ==============================================================================
 # ROUTER APLIKASI
