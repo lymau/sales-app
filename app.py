@@ -57,7 +57,7 @@ def change_password(name, old_password, new_password):
     except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
         return {"status": 500, "message": f"Password change request error: {e}"}
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def get_data(action: str, sales_group: str):
     """Mengambil data yang sudah difilter berdasarkan sales group."""
     if not APPS_SCRIPT_API_URL or not sales_group: return []
