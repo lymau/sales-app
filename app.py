@@ -132,7 +132,7 @@ def clean_data_for_display(data):
     remaining_columns = [col for col in df.columns if col not in existing_columns_in_order]
 
     # 4. Gabungkan keduanya untuk mendapatkan urutan final
-    final_column_order = existing_columns_in_order + remaining_columns
+    final_column_order = existing_columns_in_order # + remaining_columns
 
     # 5. Terapkan urutan baru ke DataFrame
     df = df[final_column_order]
