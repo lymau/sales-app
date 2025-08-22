@@ -113,19 +113,35 @@ def get_single_lead(search_params, sales_group: str):
         return {"status": 500, "message": f"Request Error: {e}"}
 
 def clean_data_for_display(data):
-    """Membersihkan data sebelum ditampilkan di st.dataframe."""
-    if isinstance(data, pd.DataFrame):
-        if data.empty:
-            return pd.DataFrame()
-        df = data.copy()
-    elif not data:
+    """
+    Membersihkan dan MENGATUR ULANG URUTAN KOLOM data sebelum ditampilkan.
+    """
+    if not data:
         return pd.DataFrame()
-    else:
-        df = pd.DataFrame(data)
-        
+    df = pd.DataFrame(data)
+
+    # 1. Tentukan urutan kolom yang Anda inginkan. Anda bisa mengubah urutan ini.
+    desired_order = [
+        'opportunity_id', 'salesgroup_id','sales_name', 'company_name', 'vertical_industry', 'opportunity_name', 'responsible_name', 'start_date', 'pillar', 'solution', 'service', 'brand', 'channel', 'distributor_name', 'stage', 'selling_price', 'sales_notes' 
+    ]
+
+    # 2. Filter urutan ideal berdasarkan kolom yang benar-benar ada di DataFrame
+    existing_columns_in_order = [col for col in desired_order if col in df.columns]
+
+    # 3. Tambahkan kolom sisa yang tidak ada di daftar 'desired_order' ke bagian akhir
+    remaining_columns = [col for col in df.columns if col not in existing_columns_in_order]
+
+    # 4. Gabungkan keduanya untuk mendapatkan urutan final
+    final_column_order = existing_columns_in_order + remaining_columns
+
+    # 5. Terapkan urutan baru ke DataFrame
+    df = df[final_column_order]
+
+    # Membersihkan tipe data
     for col in ['cost', 'selling_price']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
     return df
 
 def filter_data_for_user(data, user_name):
