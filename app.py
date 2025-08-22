@@ -122,7 +122,7 @@ def clean_data_for_display(data):
 
     # 1. Tentukan urutan kolom yang Anda inginkan. Anda bisa mengubah urutan ini.
     desired_order = [
-        'opportunity_id', 'salesgroup_id','sales_name', 'company_name', 'vertical_industry', 'opportunity_name', 'responsible_name', 'start_date', 'pillar', 'solution', 'service', 'brand', 'channel', 'distributor_name', 'stage', 'selling_price', 'sales_notes' 
+        'opportunity_id', 'salesgroup_id','sales_name', 'company_name', 'vertical_industry', 'opportunity_name', 'responsible_name', 'pillar', 'solution', 'service', 'brand', 'channel', 'distributor_name', 'stage', 'selling_price', 'sales_notes' 
     ]
 
     # 2. Filter urutan ideal berdasarkan kolom yang benar-benar ada di DataFrame
