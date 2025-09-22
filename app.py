@@ -376,7 +376,7 @@ def main_app():
                                 st.write(f"**Solution:** {item.get('solution', 'N/A')}")
                                 st.write(f"**Brand:** {item.get('brand', 'N/A')}")
                                 uid = item.get('uid', i)
-                                current_price = int(float(item.get('selling_price', 0)))
+                                current_price = int(item.get('selling_price') or 0)
                                 price_inputs[uid] = st.number_input("Input New Selling Price", min_value=0, value=current_price, step=10000, key=f"price_{uid}")
                         
                         if st.form_submit_button("Update All Selling Prices"):
