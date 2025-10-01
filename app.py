@@ -224,7 +224,7 @@ def main_app():
 
     st.title(f"Sales App - {sales_group}")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["View All Opportunities", "Search Opportunity", "Update Stage & Notes", "Update Selling Price"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["View All Opportunities", "Search Opportunity", "Update Stage & Notes", "Update Selling Price", "Activity Log"])
 
     with tab1:
         st.header("All Opportunity Solutions (Detailed View)")
@@ -397,14 +397,75 @@ def main_app():
                                 progress_bar.progress((i + 1) / total_solutions, text=progress_text)
                             
                             progress_bar.empty()
-                            if success_count > 0: st.success(f"{success_count} dari {total_solutions} harga solusi berhasil diupdate.")
-                            if error_count > 0: st.error(f"{error_count} dari {total_solutions} harga solusi gagal diupdate.")
+                            if success_count > 0: st.success(f"{success_count} from {total_solutions} solution prices successfully updated.")
+                            if error_count > 0: st.error(f"{error_count} from {total_solutions} solution prices failed to update.")
                             st.cache_data.clear()
                             st.rerun()
                 else:
                     st.warning("No solution details found for this opportunity.")
         else:
             st.warning("Could not load opportunities list for your group.")
+
+    with tab5:
+        st.header("Sales Activity Log")
+        st.info("Recording changes to Stage, Sales Notes, and Selling Price.")
+
+        if st.button("Refresh Sales Log"):
+            st.cache_data.clear()
+            st.rerun()
+
+        with st.spinner("Fetching sales activity log..."):
+            # Panggil endpoint baru
+            log_data_raw = get_data('getSalesActivityLog', sales_group)
+
+            if log_data_raw:
+                # Filter log awal berdasarkan peran pengguna (Super user vs user biasa)
+                df_log_filtered = pd.DataFrame(filter_data_for_user(log_data_raw, sales_name))
+
+                if not df_log_filtered.empty:
+                    
+                    # --- LOGIKA FILTER DROPDOWN BERDASARKAN OPPORTUNITY NAME ---
+                    if 'OpportunityName' in df_log_filtered.columns and not df_log_filtered['OpportunityName'].empty:
+                        opportunity_options = sorted(df_log_filtered['OpportunityName'].dropna().unique().tolist())
+                        opportunity_options.insert(0, "All Opportunities")
+
+                        selected_opportunity = st.selectbox(
+                            "Filter by Opportunity Name:",
+                            options=opportunity_options,
+                            key="sales_log_opportunity_filter"
+                        )
+
+                        if selected_opportunity != "All Opportunities":
+                            df_to_display = df_log_filtered[df_log_filtered['OpportunityName'] == selected_opportunity]
+                        else:
+                            df_to_display = df_log_filtered
+                    else:
+                        df_to_display = df_log_filtered
+                    # --- AKHIR LOGIKA FILTER DROPDOWN ---
+
+                    # Proses selanjutnya menggunakan df_to_display yang sudah difilter
+                    if not df_to_display.empty:
+                    # ▼▼▼ BAGIAN INI YANG MELAKUKAN KONVERSI KE WIB ▼▼▼
+                    # Mengurutkan dan memformat timestamp ke WIB
+                        if 'Timestamp' in df_to_display.columns:
+                            df_to_display['Timestamp'] = pd.to_datetime(df_to_display['Timestamp'])
+                            df_to_display = df_to_display.sort_values(by="Timestamp", ascending=False)
+                            # Ini adalah baris yang mengonversi ke GMT+7 dan memformatnya
+                            df_to_display['Timestamp'] = df_to_display['Timestamp'].dt.tz_convert('Asia/Jakarta').dt.strftime('%Y-%m-%d %H:%M:%S')
+
+                        # Mengubah kolom menjadi string untuk mencegah error tampilan
+                        for col in ['OldValue', 'NewValue']:
+                            if col in df_to_display.columns:
+                                df_to_display[col] = df_to_display[col].astype(str)
+
+                        st.write(f"Ditemukan {len(df_to_display)} entri log untuk filter yang dipilih.")
+                        st.dataframe(df_to_display)
+                    else:
+                        st.info("No log activity was recorded for the filter you selected.")
+                else:
+                    st.info("No log activity was recorded for you.")
+            else:
+                st.warning("No log activity has been recorded for your group.")
 
 # ==============================================================================
 # HALAMAN INPUT PASSWORD
