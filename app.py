@@ -112,7 +112,7 @@ def get_single_lead(search_params, sales_group: str):
         st.error(f"Error saat mengambil lead: {e}")
         return {"status": 500, "message": f"Request Error: {e}"}
 
-def clean_data_for_display(data):
+def clean_data_for_display(data, desired_order=None): # <-- 1. TAMBAHKAN PARAMETER
     """
     Membersihkan dan MENGATUR ULANG URUTAN KOLOM data sebelum ditampilkan.
     """
@@ -120,10 +120,12 @@ def clean_data_for_display(data):
         return pd.DataFrame()
     df = pd.DataFrame(data)
 
-    # 1. Tentukan urutan kolom yang Anda inginkan. Anda bisa mengubah urutan ini.
-    desired_order = [
-        'opportunity_id', 'salesgroup_id', 'sales_name', 'opportunity_name', 'stage', 'selling_price', 'sales_notes'
-    ]
+    # 1. Tentukan urutan kolom yang Anda inginkan.
+    # JIKA TIDAK ADA URUTAN YG DIBERIKAN, GUNAKAN DEFAULT UNTUK TAB 1
+    if desired_order is None:
+        desired_order = [
+            'opportunity_id', 'salesgroup_id', 'sales_name', 'company_name', 'opportunity_name', 'stage', 'selling_price', 'sales_notes'
+        ]
 
     # 2. Filter urutan ideal berdasarkan kolom yang benar-benar ada di DataFrame
     existing_columns_in_order = [col for col in desired_order if col in df.columns]
@@ -311,10 +313,19 @@ def main_app():
                             found_leads = filter_data_for_user(found_leads_raw, sales_name)
                             
                             if found_leads:
-                                st.success(f"Found {len(found_leads)} matching solution(s).")
-                                st.dataframe(clean_data_for_display(found_leads))
+                                    st.success(f"Found {len(found_leads)} matching solution(s).")
+                                    
+                                    # ▼▼▼ TENTUKAN KOLOM UNTUK HASIL PENCARIAN ▼▼▼
+                                    search_result_columns = [
+                                        'opportunity_id', 'sales_name', 'company_name', 'opportunity_name', 'pillar', 'solution', 'service', 'brand'
+                                        'stage', 'selling_price', 'sales_notes', 
+                                    ]
+                                    # Panggil fungsi dengan daftar kolom baru
+                                    st.dataframe(clean_data_for_display(found_leads, desired_order=search_result_columns))
+                                    # ▲▲▲ AKHIR PERUBAHAN ▲▲▲
+                                
                             else:
-                                st.info("No solution found with the given criteria in your scope.")
+                                    st.info("No solution found with the given criteria in your scope.")
                         else:
                             st.error(response.get("message", "Failed to search."))
             else:
