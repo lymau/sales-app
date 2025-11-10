@@ -122,7 +122,7 @@ def clean_data_for_display(data):
 
     # 1. Tentukan urutan kolom yang Anda inginkan. Anda bisa mengubah urutan ini.
     desired_order = [
-        'opportunity_id', 'salesgroup_id','sales_name', 'company_name', 'vertical_industry', 'opportunity_name', 'responsible_name', 'pillar', 'solution', 'service', 'brand', 'channel', 'distributor_name', 'stage', 'selling_price', 'sales_notes' 
+        'opportunity_id', 'salesgroup_id', 'sales_name', 'opportunity_name', 'stage', 'selling_price', 'sales_notes'
     ]
 
     # 2. Filter urutan ideal berdasarkan kolom yang benar-benar ada di DataFrame
@@ -253,7 +253,7 @@ def main_app():
 
         if all_leads_data:
             df_master = pd.DataFrame(all_leads_data)
-            search_keywords = ["Opportunity Name","Company", "Sales Name", "Presales Account Manager", "Pillar", "Solution", "Brand"]
+            search_keywords = ["Opportunity Name","Company", "Sales Name", "Presales Account Manager", "Pillar", "Solution", "Brand", "Stage"]
             search_by_option = st.selectbox("Search By", search_keywords, key="search_option")
 
             search_query = ""
@@ -281,6 +281,9 @@ def main_app():
                 elif search_by_option == "Brand":
                     options = sorted(df_master['brand'].unique())
                     search_query = st.selectbox("Select Brand", options, key="search_brand", index=None)
+                elif search_by_option == "Stage":
+                    options = sorted(df_master['stage'].unique())
+                    search_query = st.selectbox("Select Stage", options, key="search_stage", index=None)
                 else:
                     col_map = {
                         "Sales Name": "sales_name", "Presales Account Manager": "responsible_name",
@@ -293,7 +296,7 @@ def main_app():
                 param_map = {
                     "Opportunity Name": "opportunity_name", "Company": "company_name", "Sales Name": "sales_name",
                     "Presales Account Manager": "responsible_name", "Pillar": "pillar",
-                    "Solution": "solution", "Brand": "brand"
+                    "Solution": "solution", "Brand": "brand", "Stage": "stage"
                 }
                 search_params = {param_map[search_by_option]: search_query}
                 
