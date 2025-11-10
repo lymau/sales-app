@@ -317,8 +317,8 @@ def main_app():
                                     
                                     # ▼▼▼ TENTUKAN KOLOM UNTUK HASIL PENCARIAN ▼▼▼
                                     search_result_columns = [
-                                        'opportunity_id', 'sales_name', 'company_name', 'opportunity_name', 'pillar', 'solution', 'service', 'brand'
-                                        'stage', 'selling_price', 'sales_notes', 
+                                        'opportunity_id', 'sales_name', 'company_name', 'opportunity_name', 'pillar', 'solution', 'service', 'brand',
+                                        'stage', 'selling_price', 'sales_notes'
                                     ]
                                     # Panggil fungsi dengan daftar kolom baru
                                     st.dataframe(clean_data_for_display(found_leads, desired_order=search_result_columns))
