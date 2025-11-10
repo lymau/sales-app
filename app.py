@@ -227,19 +227,21 @@ def main_app():
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["View All Opportunities", "Search Opportunity", "Update Stage & Notes", "Update Selling Price", "Activity Log"])
 
     with tab1:
-        st.header("All Opportunity Solutions (Detailed View)")
+        # Ganti judul agar lebih sesuai
+        st.header("All Opportunities (Summary View)") 
         if st.button("Refresh Opportunities"):
             st.cache_data.clear()
             st.rerun()
 
         with st.spinner(f"Fetching opportunities for {sales_group}..."):
-            # 1. Ambil data mentah dari API
-            raw_leads_data = get_data('leads', sales_group)
+            # 1. Ambil data mentah dari API (GANTI SUMBER DATA)
+            raw_leads_data = get_data('leadBySales', sales_group) # <-- UBAH 'leads' MENJADI 'leadBySales'
             # 2. Terapkan filter berdasarkan peran pengguna
             leads_data = filter_data_for_user(raw_leads_data, sales_name)
             
             if leads_data:
-                st.write(f"Found {len(leads_data)} solutions for you.")
+                # Ganti teks agar lebih sesuai
+                st.write(f"Found {len(leads_data)} opportunities for you.") 
                 st.dataframe(clean_data_for_display(leads_data))
             else:
                 st.info("No opportunities found for you.")
