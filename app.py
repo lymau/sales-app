@@ -238,7 +238,7 @@ def main_app():
 
     st.title(f"Sales App - {sales_group}")
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Kanban View", "Search Opportunity", "Update Stage & Notes", "Update Selling Price", "Activity Log"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Kanban View", "Search Opportunity", "Update Stage & Notes", "Update Selling Price"])
 
     with tab1:
         # 1. Ambil data 'leads' (detail) dan filter
