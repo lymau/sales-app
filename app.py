@@ -28,16 +28,14 @@ def get_sales_names():
         response.raise_for_status()
         json_data = response.json()
         if json_data.get("status") == 200 and json_data.get("data"):
-            # Ambil hanya kolom 'name' dari data yang diterima
             return [user['name'] for user in json_data['data']]
         return []
     except (requests.exceptions.RequestException, json.JSONDecodeError):
         return []
 
-def validate_password(sales_name, password): # <-- UBAH PARAMETER
+def validate_password(sales_name, password):
     """Memvalidasi NAMA & PASSWORD melalui backend."""
     url = f"{APPS_SCRIPT_API_URL}?action=validateAppPassword"
-    # Payload sekarang berisi nama dan password
     payload = {"name": sales_name, "password": password} 
     headers = {"Content-Type": "application/json"}
     try:
@@ -116,39 +114,32 @@ def clean_data_for_display(data, desired_order=None):
     """
     Membersihkan dan MENGATUR ULANG URUTAN KOLOM data sebelum ditampilkan.
     """
-    # --- START PERBAIKAN ---
-    # Cek jika inputnya adalah DataFrame (dari Kanban)
     if isinstance(data, pd.DataFrame):
         if data.empty:
             return pd.DataFrame()
-        # Input sudah berupa DataFrame, kita bisa langsung pakai
         df = data 
     
-    # Cek jika inputnya adalah list (dari API)
-    elif not data: # Ini aman untuk list
+    elif not data:
         return pd.DataFrame()
     
-    # Jika inputnya list berisi data, konversi ke DataFrame
     else:
         df = pd.DataFrame(data)
 
-    # 1. Tentukan urutan kolom yang Anda inginkan.
-    # JIKA TIDAK ADA URUTAN YG DIBERIKAN, GUNAKAN DEFAULT UNTUK TAB 1
     if desired_order is None:
         desired_order = [
             'opportunity_id', 'salesgroup_id', 'sales_name', 'company_name', 'opportunity_name', 'stage', 'selling_price', 'sales_notes'
         ]
 
-    # 2. Filter urutan ideal berdasarkan kolom yang benar-benar ada di DataFrame
+    
     existing_columns_in_order = [col for col in desired_order if col in df.columns]
 
-    # 3. Tambahkan kolom sisa yang tidak ada di daftar 'desired_order' ke bagian akhir
+    
     remaining_columns = [col for col in df.columns if col not in existing_columns_in_order]
 
-    # 4. Gabungkan keduanya untuk mendapatkan urutan final
+
     final_column_order = existing_columns_in_order # + remaining_columns
 
-    # 5. Terapkan urutan baru ke DataFrame
+    
     df = df[final_column_order]
 
     # Membersihkan tipe data
@@ -184,7 +175,6 @@ if 'lines_to_update_price' not in st.session_state:
     st.session_state.lines_to_update_price = None
 
 def main_app():
-    ## --- PERUBAHAN DIMULAI DI SINI ---
 
     # Mengambil data sesi dengan aman
     group_info = st.session_state.get('group_info', {})
@@ -214,10 +204,8 @@ def main_app():
                         with st.spinner("Updating password..."):
                             response = change_password(sales_name, old_password, new_password)
                         
-                        # --- INI BAGIAN YANG DIUBAH ---
                         if response.get("status") == 200:
                             st.success("Password successfully changed. You will be redirected to the login page.")
-                            # Tunggu sebentar agar user bisa membaca pesan
                             import time
                             time.sleep(2) 
                             
@@ -226,14 +214,13 @@ def main_app():
                             st.cache_data.clear()
                             
                             # Paksa aplikasi untuk menjalankan ulang dari awal (kembali ke halaman login)
-                            st.rerun() 
+                            st.rerun()
                         else:
                             st.error(response.get("message", "Failed to change password."))
 
     # Pengecekan sesi yang valid
     if not sales_group:
         st.error("Login session is invalid. Please log out and log in again.")
-        # Tombol logout di sidebar sudah menangani ini, jadi blok ini hanya untuk error
         return
 
     st.title(f"Sales App - {sales_group}")
@@ -250,11 +237,6 @@ def main_app():
         else:
             df_master = pd.DataFrame(all_leads_data)
 
-            # =============================================================
-            # ▼▼▼ LOGIKA KANBAN (SEKARANG DI TAB 1) ▼▼▼
-            # =============================================================
-            
-            # --- 1. LOGIKA NAVIGASI (DETAIL VIEW) --------------------
             # --- 1. LOGIKA NAVIGASI (DETAIL VIEW) --------------------
             if 'selected_kanban_opp_id' in st.session_state:
                 
@@ -280,7 +262,6 @@ def main_app():
                     st.header(f"Detail for: {opp_name}")
                     st.subheader(f"Client: {company_name}")
                     
-                    # ▼▼▼ BLOK INFO BARU (SEPERTI GAMBAR ANDA) ▼▼▼
                     st.markdown("---")
                     st.subheader("Opportunity Summary")
                     
@@ -294,12 +275,10 @@ def main_app():
                         st.markdown(f"🛠️ **Service:** {lead_data.get('service', 'N/A')}")
                     with col2:
                         st.markdown(f"🏷️ **Brand:** {lead_data.get('brand', 'N/A')}")
-                        # Asumsi kolom 'vertical_industry' ada di df_master dari get_data('leads')
                         st.markdown(f"🏭 **Vertical Industry:** {lead_data.get('vertical_industry', 'N/A')}") 
                         st.markdown(f"ℹ️ **Stage:** {lead_data.get('stage', 'N/A')}")
                         st.markdown(f"🆔 **Opportunity ID:** {lead_data.get('opportunity_id', 'N/A')}")
                     st.markdown("---")
-                    # ▲▲▲ AKHIR BLOK INFO BARU ▲▲▲
 
                     # FORM 1: UPDATE STAGE & NOTES
                     st.subheader("Update Opportunity Stage & Notes")
@@ -569,7 +548,6 @@ def main_app():
                 opportunity_id_price = opp_options_price[selected_opp_display_price]
                 
                 with st.spinner("Fetching solution details..."):
-                    # Data detail juga perlu difilter
                     lines_to_update_raw = get_single_lead({"opportunity_id": opportunity_id_price}, sales_group).get('data', [])
                     lines_to_update = filter_data_for_user(lines_to_update_raw, sales_name)
                 
