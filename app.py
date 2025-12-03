@@ -520,7 +520,7 @@ def main_app():
                         current_stage = lead_data.get('stage', 'Open')
                         default_index = stage_options.index(current_stage) if current_stage in stage_options else 0
                         stage = st.selectbox("Stage", options=stage_options, index=default_index)
-                        sales_notes = st.text_area("Sales Notes", value=lead_data.get("sales_note", ""))
+                        sales_notes = st.text_area("Sales Notes", value=lead_data.get("sales_note", ""), placeholder="Please inform the reason for stage change. E.g., Why the opportunity is Won or Lost.")
                         
                         if st.form_submit_button("Update Stage & Notes"):
                             update_data = {"opportunity_id": opportunity_id, "sales_notes": sales_notes, "stage": stage}
