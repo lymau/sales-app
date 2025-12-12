@@ -228,66 +228,92 @@ def main_app():
     tab1, tab2, tab3, tab4 = st.tabs(["Kanban View", "Search Opportunity", "Update Stage & Notes", "Update Selling Price"])
 
     with tab1:
-        # 1. Ambil data 'leads' (detail) dan filter
-        raw_all_leads_data = get_data('leads', sales_group)
-        all_leads_data = filter_data_for_user(raw_all_leads_data, sales_name)
+        # --- PERUBAHAN 1: AMBIL 2 SUMBER DATA ---
+        # 1. leadBySales (Summary): Mengandung Harga Total (Lump Sum) & Stage yang benar.
+        # 2. leads (Detail): Mengandung daftar item dan Nama Company.
+        
+        raw_summary_data = get_data('leadBySales', sales_group)
+        summary_data = filter_data_for_user(raw_summary_data, sales_name)
 
-        if not all_leads_data:
-            st.info("No data found for your group to display.")
+        raw_detail_data = get_data('leads', sales_group)
+        detail_data = filter_data_for_user(raw_detail_data, sales_name)
+
+        if not summary_data:
+            st.info("No opportunities found for your group to display.")
         else:
-            df_master = pd.DataFrame(all_leads_data)
+            # Siapkan DataFrame Summary (Master untuk Kanban)
+            df_summary = pd.DataFrame(summary_data)
+            # Pastikan kolom harga numerik
+            df_summary['selling_price'] = pd.to_numeric(df_summary['selling_price'], errors='coerce').fillna(0)
 
-            # --- 1. LOGIKA NAVIGASI (DETAIL VIEW) --------------------
+            # Siapkan DataFrame Detail (Untuk View Details & Ambil Company Name)
+            df_details = pd.DataFrame(detail_data) if detail_data else pd.DataFrame()
+
+            # --- PERUBAHAN 2: MERGE UNTUK DAPATKAN COMPANY NAME ---
+            # Kita tempelkan Company Name dari data detail ke data summary
+            if not df_details.empty and 'company_name' in df_details.columns:
+                company_map = df_details[['opportunity_id', 'company_name']].drop_duplicates(subset=['opportunity_id'])
+                df_kanban = pd.merge(df_summary, company_map, on='opportunity_id', how='left')
+                df_kanban['company_name'] = df_kanban['company_name'].fillna('Unknown')
+            else:
+                df_kanban = df_summary
+                df_kanban['company_name'] = 'Unknown'
+
+            # =================================================================
+            # LOGIKA NAVIGASI (DETAIL VIEW)
+            # =================================================================
             if 'selected_kanban_opp_id' in st.session_state:
                 
                 selected_id = st.session_state.selected_kanban_opp_id
                 
-                # Tombol "Back"
+                # Tombol Back
                 if st.button("⬅️ Back to Kanban View"):
                     del st.session_state.selected_kanban_opp_id
                     if 'kanban_stage_message' in st.session_state: del st.session_state.kanban_stage_message
                     if 'kanban_price_message' in st.session_state: del st.session_state.kanban_price_message
                     st.rerun()
                 
-                opportunity_details_df = df_master[df_master['opportunity_id'] == selected_id]
+                # Ambil data spesifik dari summary (untuk header) dan detail (untuk list item)
+                opp_summary = df_kanban[df_kanban['opportunity_id'] == selected_id]
+                opp_items = df_details[df_details['opportunity_id'] == selected_id] if not df_details.empty else pd.DataFrame()
                 
-                if opportunity_details_df.empty:
-                    st.error(f"Could not find solution details for {selected_id}.")
+                if opp_summary.empty:
+                    st.error(f"Could not find opportunity details for {selected_id}.")
                 else:
-                    # Ambil data dari baris pertama untuk ringkasan
-                    lead_data = opportunity_details_df.iloc[0].to_dict()
+                    # Tampilkan Header (Info Project)
+                    lead_data = opp_summary.iloc[0].to_dict()
                     opp_name = lead_data.get('opportunity_name', 'N/A')
                     company_name = lead_data.get('company_name', 'N/A')
+                    total_price = lead_data.get('selling_price', 0)
                     
                     st.header(f"Detail for: {opp_name}")
                     st.subheader(f"Client: {company_name}")
+                    st.write(f"**Total Project Value:** {int(total_price):,}")
                     
                     st.markdown("---")
-                    st.subheader("Opportunity Summary")
                     
-                    # Tampilkan data ringkasan seperti di gambar
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.markdown(f"👤 **Sales Name:** {lead_data.get('sales_name', 'N/A')}")
-                        st.markdown(f"🧑‍💼 **Presales Account Manager:** {lead_data.get('responsible_name', 'N/A')}")
-                        st.markdown(f"🏛️ **Pillar:** {lead_data.get('pillar', 'N/A')}")
-                        st.markdown(f"🧩 **Solution:** {lead_data.get('solution', 'N/A')}")
-                        st.markdown(f"🛠️ **Service:** {lead_data.get('service', 'N/A')}")
-                    with col2:
-                        st.markdown(f"🏷️ **Brand:** {lead_data.get('brand', 'N/A')}")
-                        st.markdown(f"🏭 **Vertical Industry:** {lead_data.get('vertical_industry', 'N/A')}") 
-                        st.markdown(f"ℹ️ **Stage:** {lead_data.get('stage', 'N/A')}")
-                        st.markdown(f"🆔 **Opportunity ID:** {lead_data.get('opportunity_id', 'N/A')}")
+                    # Tampilkan Detail Item (Hanya Read-Only / Tabel Saja)
+                    st.subheader("Solution Components")
+                    if not opp_items.empty:
+                        # Tampilkan tabel solusi
+                        display_cols = ['pillar', 'solution', 'service', 'brand']
+                        # Filter kolom yang ada saja
+                        final_cols = [c for c in display_cols if c in opp_items.columns]
+                        st.dataframe(opp_items[final_cols], use_container_width=True)
+                    else:
+                        st.info("No detailed items found for this opportunity.")
+
                     st.markdown("---")
 
-                    # FORM 1: UPDATE STAGE & NOTES
-                    st.subheader("Update Opportunity Stage & Notes")
+                    # FORM UPDATE STAGE & NOTES
+                    st.subheader("Update Stage & Notes")
                     with st.form(key="kanban_update_stage_form"):
                         stage_options = ["Open", "Closed Won", "Closed Lost"]
                         current_stage = lead_data.get('stage', 'Open')
                         default_index = stage_options.index(current_stage) if current_stage in stage_options else 0
+                        
                         stage = st.selectbox("Stage", options=stage_options, index=default_index)
-                        sales_notes = st.text_area("Sales Notes", value=lead_data.get("sales_notes", ""))
+                        sales_notes = st.text_area("Sales Notes", value=lead_data.get("sales_notes", "")) # Perhatikan: sales_notes vs sales_note di backend
                         
                         if st.form_submit_button("Update Stage & Notes"):
                             update_data = {"opportunity_id": selected_id, "sales_notes": sales_notes, "stage": stage}
@@ -300,92 +326,28 @@ def main_app():
                                 else:
                                     st.error(response.get("message", "Failed to update."))
 
-                    # Tampilkan pesan notifikasi STAGE di sini
                     if 'kanban_stage_message' in st.session_state:
                         msg = st.session_state.kanban_stage_message
                         if msg.get("type") == "success": st.success(msg.get("text"))
                         else: st.error(msg.get("text"))
                         del st.session_state.kanban_stage_message
 
-                    st.markdown("---")
-                    # FORM 2: UPDATE SELLING PRICE
-                    st.subheader("Update Selling Price per Solution")
-                    lines_to_update = opportunity_details_df.to_dict('records')
-                    with st.form(key="kanban_update_price_form"):
-                        price_inputs = {}
-                        for i, item in enumerate(lines_to_update):
-                            with st.container(border=True):
-                                st.markdown(f"**Solusi {i+1}**")
-                                st.write(f"**Pillar:** {item.get('pillar', 'N/A')}")
-                                st.write(f"**Solution:** {item.get('solution', 'N/A')}")
-                                st.write(f"**Service:** {item.get('service', 'N/A')}")
-                                st.write(f"**Brand:** {item.get('brand', 'N/A')}")
-                                st.write(f"**Current Selling Price:** {int(item.get('selling_price') or 0):,}")
-                                uid = item.get('uid')
-                                if not uid:
-                                    st.error(f"Error: Solusi {i+1} tidak memiliki UID. Tidak dapat di-update.")
-                                    continue
-                                current_price = int(item.get('selling_price') or 0)
-                                price_inputs[uid] = st.number_input("Input New Selling Price", min_value=0, value=current_price, step=10000, key=f"kanban_price_{uid}")
-                        
-                        if st.form_submit_button("Update All Selling Prices"):
-                            success_count = 0; error_count = 0
-                            total_solutions = len(price_inputs)
-                            if total_solutions == 0:
-                                st.warning("No solutions with valid UID found to update.")
-                            else:
-                                progress_bar = st.progress(0, text="Memulai update...")
-                                for i, (uid, new_price) in enumerate(price_inputs.items()):
-                                    response = update_solution_price({"uid": uid, "selling_price": new_price})
-                                    if response and response.get("status") == 200: success_count += 1
-                                    else: error_count += 1
-                                    progress_text = f"Updating price for solution {i+1}/{total_solutions}..."
-                                    progress_bar.progress((i + 1) / total_solutions, text=progress_text)
-                                
-                                progress_bar.empty()
-                                msg_text = ""; msg_type = "success"
-                                if success_count > 0: msg_text += f"{success_count} of {total_solutions} prices updated. "
-                                if error_count > 0: 
-                                    msg_text += f"{error_count} of {total_solutions} prices failed."
-                                    msg_type = "error" if success_count == 0 else "warning"
-                                
-                                st.session_state.kanban_price_message = {"type": msg_type, "text": msg_text}
-                                st.cache_data.clear()
-                                st.rerun()
-
-                    # Tampilkan pesan notifikasi HARGA di sini
-                    if 'kanban_price_message' in st.session_state:
-                        msg = st.session_state.kanban_price_message
-                        msg_type = msg.get("type", "info")
-                        if msg_type == "success": st.success(msg.get("text"))
-                        elif msg_type == "error": st.error(msg.get("text"))
-                        elif msg_type == "warning": st.warning(msg.get("text"))
-                        else: st.info(msg.get("text"))
-                        del st.session_state.kanban_price_message
-
-            # --- 2. TAMPILAN KANBAN (MAIN VIEW) ----------------------
+            # =================================================================
+            # TAMPILAN KANBAN (MAIN VIEW)
+            # =================================================================
             else:
                 st.subheader("Kanban View by Opportunity Stage")
-                st.markdown("Displaying unique data per opportunity with total price. Click 'View Details' on the card.")
-
-                if 'opportunity_id' not in df_master.columns or 'selling_price' not in df_master.columns:
-                    st.error("Data 'leads' tidak memiliki 'opportunity_id' or 'selling_price'.")
-                    st.stop()
+                st.markdown("Showing Lump Sum Price per Opportunity.")
                 
-                df_master['selling_price'] = pd.to_numeric(df_master['selling_price'], errors='coerce').fillna(0)
-                df_sums = df_master.groupby('opportunity_id')['selling_price'].sum().reset_index()
-                df_details = df_master.drop_duplicates(subset=['opportunity_id'], keep='first')
-                df_details = df_details.drop(columns=['selling_price'])
-                df_opps = pd.merge(df_details, df_sums, on='opportunity_id', how='left')
-
-                if 'stage' not in df_opps.columns:
-                    st.error("Column 'stage' not found in the data.")
-                    st.stop()
+                # --- PERUBAHAN 3: MENGGUNAKAN df_kanban YANG SUDAH JADI ---
+                # Tidak ada lagi groupby().sum() karena df_kanban sudah berisi total price
                 
-                df_opps['stage'] = df_opps['stage'].fillna('Open')
-                open_opps = df_opps[df_opps['stage'] == 'Open']
-                won_opps = df_opps[df_opps['stage'] == 'Closed Won']
-                lost_opps = df_opps[df_opps['stage'] == 'Closed Lost']
+                if 'stage' not in df_kanban.columns:
+                    df_kanban['stage'] = 'Open'
+
+                open_opps = df_kanban[df_kanban['stage'] == 'Open']
+                won_opps = df_kanban[df_kanban['stage'] == 'Closed Won']
+                lost_opps = df_kanban[df_kanban['stage'] == 'Closed Lost']
 
                 col1, col2, col3 = st.columns(3)
 
@@ -393,10 +355,11 @@ def main_app():
                     with st.container(border=True):
                         st.markdown(f"**{row.get('opportunity_name', 'N/A')}**")
                         st.markdown(f"*{row.get('company_name', 'N/A')}*")
-                        st.write(f"Sales: {row.get('sales_name', 'N/A')}")
+                        st.caption(f"Sales: {row.get('sales_name', 'N/A')}")
+                        
+                        # Harga langsung dari row summary
                         price = int(row.get('selling_price', 0) or 0)
                         st.markdown(f"**Price: {price:,}**")
-                        st.caption(f"ID: {row.get('opportunity_id', 'N/A')}")
                         
                         opp_id = row.get('opportunity_id')
                         if st.button(f"View Details", key=f"btn_detail_{opp_id}"):
@@ -536,63 +499,73 @@ def main_app():
             st.warning("Could not load opportunities list for you.")
 
     with tab4:
-        st.header("Update Selling Price per Solution")
-        raw_all_opps_price = get_data('leadBySales', sales_group)
-        all_opps_price = filter_data_for_user(raw_all_opps_price, sales_name)
+        st.header("Update Opportunity Selling Price (Lump Sum)")
+        st.info("Update total project value directly. This will update the Sales Dashboard.")
 
-        if all_opps_price:
-            opp_options_price = {f"{opp.get('opportunity_name', 'N/A')} (ID: {opp.get('opportunity_id')})": opp.get('opportunity_id') for opp in all_opps_price}
-            selected_opp_display_price = st.selectbox("Choose Opportunity to Update Price", options=opp_options_price.keys(), index=None, placeholder="Pilih opportunity...")
+        # 1. Ambil data dari endpoint 'leadBySales' (Data Summary/Header)
+        # Ini lebih ringan daripada mengambil detail leads
+        raw_sales_opps = get_data('leadBySales', sales_group)
+        sales_opps = filter_data_for_user(raw_sales_opps, sales_name)
 
-            if selected_opp_display_price:
-                opportunity_id_price = opp_options_price[selected_opp_display_price]
+        if sales_opps:
+            # Buat dictionary untuk dropdown: "Nama Opp (ID)" -> ID
+            opp_options = {f"{item.get('opportunity_name', 'N/A')} ({item.get('opportunity_id')})": item.get('opportunity_id') for item in sales_opps}
+            
+            selected_display = st.selectbox("Select Opportunity", options=opp_options.keys(), index=None, placeholder="Choose an opportunity...")
+
+            if selected_display:
+                selected_id = opp_options[selected_display]
                 
-                with st.spinner("Fetching solution details..."):
-                    lines_to_update_raw = get_single_lead({"opportunity_id": opportunity_id_price}, sales_group).get('data', [])
-                    lines_to_update = filter_data_for_user(lines_to_update_raw, sales_name)
+                # Ambil data saat ini dari list yang sudah ditarik
+                current_data = next((item for item in sales_opps if item['opportunity_id'] == selected_id), None)
                 
-                if lines_to_update:
-                    with st.form(key="update_price_form"):
-                        price_inputs = {}
-                        for i, item in enumerate(lines_to_update):
-                            with st.container(border=True):
-                                st.markdown(f"**Solusi {i+1}**")
-                                st.write(f"**Pillar:** {item.get('pillar', 'N/A')}")
-                                st.write(f"**Solution:** {item.get('solution', 'N/A')}")
-                                st.write(f"**Service:** {item.get('service', 'N/A')}")
-                                st.write(f"**Brand:** {item.get('brand', 'N/A')}")
-                                st.write(f"**Company:** {item.get('company_name', 'N/A')}")
-                                st.write(f"**Current Selling Price:** {int(item.get('selling_price') or 0):,}")
-                                uid = item.get('uid', i)
-                                current_price = int(item.get('selling_price') or 0)
-                                price_inputs[uid] = st.number_input("Input New Selling Price", min_value=0, value=current_price, step=10000, key=f"price_{uid}")
+                if current_data:
+                    current_price = float(current_data.get('selling_price') or 0)
+                    opp_name = current_data.get('opportunity_name')
+                    
+                    st.markdown(f"**Selected Opportunity:** {opp_name}")
+                    st.markdown(f"**Current Total Price:** Rp {current_price:,.0f}")
+                    st.markdown("---")
+
+                    with st.form("lump_sum_price_form"):
+                        # Input Harga Baru
+                        new_price = st.number_input("New Total Selling Price", min_value=0.0, value=current_price, step=1000000.0, format="%.0f")
                         
-                        if st.form_submit_button("Update All Selling Prices"):
-                            success_count = 0
-                            error_count = 0
-                            total_solutions = len(price_inputs)
-                            progress_bar = st.progress(0, text="Memulai update...")
-
-                            for i, (uid, new_price) in enumerate(price_inputs.items()):
-                                update_payload = {"uid": uid, "selling_price": new_price}
-                                response = update_solution_price(update_payload)
-                                if response and response.get("status") == 200:
-                                    success_count += 1
-                                else:
-                                    error_count += 1
-                                
-                                progress_text = f"Updating price for solution {i+1}/{total_solutions}..."
-                                progress_bar.progress((i + 1) / total_solutions, text=progress_text)
+                        submitted = st.form_submit_button("Update Price")
+                        
+                        if submitted:
+                            # Payload Data
+                            payload = {
+                                "opportunity_id": selected_id,
+                                "selling_price": new_price,
+                                "user": sales_name
+                            }
                             
-                            progress_bar.empty()
-                            if success_count > 0: st.success(f"{success_count} from {total_solutions} solution prices successfully updated.")
-                            if error_count > 0: st.error(f"{error_count} from {total_solutions} solution prices failed to update.")
-                            st.cache_data.clear()
-                            st.rerun()
+                            # Kirim Request ke Action Baru di GAS
+                            with st.spinner("Updating price..."):
+                                url = f"{APPS_SCRIPT_API_URL}?action=updateLumpSumPrice"
+                                headers = {"Content-Type": "application/json"}
+                                try:
+                                    response = requests.post(url, data=json.dumps(payload), headers=headers)
+                                    
+                                    if response.status_code == 200:
+                                        res_json = response.json()
+                                        if res_json.get("status") == 200:
+                                            st.success("Price updated successfully!")
+                                            st.cache_data.clear() # Hapus cache agar data terbaru muncul
+                                            import time
+                                            time.sleep(1)
+                                            st.rerun()
+                                        else:
+                                            st.error(f"Failed: {res_json.get('message')}")
+                                    else:
+                                        st.error(f"HTTP Error: {response.status_code}")
+                                except Exception as e:
+                                    st.error(f"Connection Error: {e}")
                 else:
-                    st.warning("No solution details found for this opportunity.")
+                    st.error("Data integrity error: Opportunity ID found in list but details missing.")
         else:
-            st.warning("Could not load opportunities list for your group.")
+            st.warning("No opportunities found for your group.")
 
 # ==============================================================================
 # HALAMAN INPUT PASSWORD
