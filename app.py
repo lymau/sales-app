@@ -155,7 +155,7 @@ def filter_data_for_user(data, user_name):
     - Super user (Ridho, Budiono) dapat melihat semua data grup mereka.
     - Pengguna lain hanya dapat melihat data mereka sendiri.
     """
-    super_users = ["Ridho Danu S.A", "Budiono Untoro", "Neli Nursyamsyiah", "Tommy S. Purnomo", "Lie Suherman"]
+    super_users = ["Ridho Danu S.A", "Budiono Untoro", "Neli Nursyamsyiah", "Tommy S. Purnomo", "Lie Suherman", "Teuku Rangga Pratama"]
     
     if user_name in super_users:
         # Jika super user, kembalikan semua data tanpa filter tambahan
