@@ -12,6 +12,13 @@ st.set_page_config(
     layout="wide"
 )
 
+is_maintenance = st.secrets.get("general", {}).get("maintenance_mode", False)
+
+if is_maintenance:
+    st.title("🚧 Under Maintenance")
+    st.warning("Aplikasi sedang dalam perbaikan. Silakan kembali lagi nanti.")
+    st.stop() # Menghentikan eksekusi kode di bawahnya
+
 # Inisialisasi session state untuk menyimpan info grup setelah login
 if 'group_info' not in st.session_state:
     st.session_state.group_info = None
