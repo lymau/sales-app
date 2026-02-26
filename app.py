@@ -1,8 +1,11 @@
 import streamlit as st
+
+st.set_page_config(page_title="Sales App - SISINDOKOM", page_icon="🔒", layout="wide")
+
 import utils
 import backend as db
 
-st.set_page_config(page_title="Sales App - SISINDOKOM", page_icon="🔒", layout="wide")
+
 
 # Session State
 if 'group_info' not in st.session_state: st.session_state.group_info = None
