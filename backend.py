@@ -211,7 +211,7 @@ def log_sales_activity(opp_id, opp_name, user, action, field, old_val, new_val):
         """
         params = {
             "oid": opp_id, "on": opp_name, "un": user, 
-            "act": f"{action} - {field}", # Info field digabung ke dalam nama action
+            "act": f"{action} - {field}"[:50],  # <-- Tambahkan [:50] di sini
             "old": str(old_val), "new": str(new_val)
         }
         run_transaction(query, params)
@@ -282,56 +282,62 @@ def get_opportunity_line_items(opp_id):
 
 def update_line_item_prices(updates_list, user_name, opp_id, opp_name):
     """
-    Update selling_price HANYA pada baris yang diubah oleh Sales, 
-    berdasarkan 'uid' masing-masing item.
+    Update selling_price HANYA pada baris yang diubah oleh Sales.
+    Versi Perbaikan: opp_id di-cast sebagai string karena berupa kombinasi huruf & angka.
     """
     try:
+        # 1. SANITASI DATA MASTER: Gunakan str() untuk ID karena mengandung huruf (misal: ENT2...)
+        clean_opp_id = str(opp_id) # <-- PERBAIKAN DI SINI (sebelumnya int)
+        clean_user = str(user_name)
+        clean_opp_name = str(opp_name)
+
         with conn.engine.connect() as connection:
             trans = connection.begin()
             try:
                 for item in updates_list:
-                    uid = item['uid']
-                    new_price = item['selling_price']
+                    # Sanitasi data per baris
+                    clean_uid = str(item['uid'])
+                    clean_new_price = float(item['selling_price'])
 
                     # Ambil data lama untuk referensi log
                     old_data = connection.execute(
                         text("SELECT selling_price, solution, brand FROM opportunities WHERE uid = :uid"),
-                        {"uid": uid}
+                        {"uid": clean_uid}
                     ).mappings().first()
 
                     if old_data:
-                        old_val = old_data['selling_price'] or 0
+                        old_val = float(old_data['selling_price'] or 0)
                         item_desc = f"{old_data['solution']} ({old_data['brand']})"
 
-                        if float(old_val) != float(new_price):
+                        if old_val != clean_new_price:
                             # 1. Update baris tersebut
                             connection.execute(
                                 text("UPDATE opportunities SET selling_price = :price, updated_at = NOW() WHERE uid = :uid"),
-                                {
-                                    "price": float(new_price), # <-- PAKSA JADI PYTHON FLOAT DI SINI
-                                    "uid": str(uid)            # <-- PAKSA JADI STRING
-                                }
+                                {"price": clean_new_price, "uid": clean_uid}
                             )
 
-                            # 2. Catat Log secara spesifik untuk item ini
+                            # 2. Catat Log (Action dipotong agar tidak melebih 50 karakter)
                             log_q = text("""
                                 INSERT INTO activity_logs_sales 
                                 (timestamp, opportunity_id, opportunity_name, user_name, action, old_value, new_value)
                                 VALUES (NOW(), :oid, :oname, :usr, :act, :old, :new)
                             """)
                             connection.execute(log_q, {
-                                "oid": opp_id, "oname": opp_name, "usr": user_name, 
-                                "act": f"UPDATE ITEM PRICE - {item_desc}", # Info item digabung ke action
-                                "old": str(old_val), "new": str(new_price)
+                                "oid": clean_opp_id, 
+                                "oname": clean_opp_name, 
+                                "usr": clean_user, 
+                                "act": f"UPD PRICE - {item_desc}"[:50], 
+                                "old": str(old_val), 
+                                "new": str(clean_new_price)
                             })
 
                 trans.commit()
                 return {"status": 200, "message": "Harga per item berhasil disimpan."}
             except Exception as e:
                 trans.rollback()
-                return {"status": 500, "message": f"Gagal menyimpan: {str(e)}"}
+                return {"status": 500, "message": f"Gagal menyimpan transaksi: {str(e)}"}
     except Exception as e:
-        return {"status": 500, "message": str(e)}
+        return {"status": 500, "message": f"Data Type Error: {str(e)}"}
 
 # ==============================================================================
 # 6. UNIFIED STAGE UPDATE WITH NOTIFICATION
