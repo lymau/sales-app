@@ -206,12 +206,12 @@ def log_sales_activity(opp_id, opp_name, user, action, field, old_val, new_val):
     try:
         query = """
             INSERT INTO activity_logs_sales 
-            (timestamp, opportunity_id, opportunity_name, user_name, action, field_changed, old_value, new_value)
-            VALUES (NOW(), :oid, :on, :un, :act, :fld, :old, :new)
+            (timestamp, opportunity_id, opportunity_name, user_name, action, old_value, new_value)
+            VALUES (NOW(), :oid, :on, :un, :act, :old, :new)
         """
         params = {
             "oid": opp_id, "on": opp_name, "un": user, 
-            "act": action, "fld": field, 
+            "act": f"{action} - {field}", # Info field digabung ke dalam nama action
             "old": str(old_val), "new": str(new_val)
         }
         run_transaction(query, params)
@@ -307,18 +307,21 @@ def update_line_item_prices(updates_list, user_name, opp_id, opp_name):
                             # 1. Update baris tersebut
                             connection.execute(
                                 text("UPDATE opportunities SET selling_price = :price, updated_at = NOW() WHERE uid = :uid"),
-                                {"price": new_price, "uid": uid}
+                                {
+                                    "price": float(new_price), # <-- PAKSA JADI PYTHON FLOAT DI SINI
+                                    "uid": str(uid)            # <-- PAKSA JADI STRING
+                                }
                             )
 
                             # 2. Catat Log secara spesifik untuk item ini
                             log_q = text("""
                                 INSERT INTO activity_logs_sales 
-                                (timestamp, opportunity_id, opportunity_name, user_name, action, field_changed, old_value, new_value)
-                                VALUES (NOW(), :oid, :oname, :usr, 'UPDATE ITEM PRICE', :fld, :old, :new)
+                                (timestamp, opportunity_id, opportunity_name, user_name, action, old_value, new_value)
+                                VALUES (NOW(), :oid, :oname, :usr, :act, :old, :new)
                             """)
                             connection.execute(log_q, {
                                 "oid": opp_id, "oname": opp_name, "usr": user_name, 
-                                "fld": f"Selling Price - {item_desc}", 
+                                "act": f"UPDATE ITEM PRICE - {item_desc}", # Info item digabung ke action
                                 "old": str(old_val), "new": str(new_price)
                             })
 

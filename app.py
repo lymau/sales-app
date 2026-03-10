@@ -44,12 +44,11 @@ def main_app():
 
     st.title(f"Sales App - {sales_group}")
     
-    t1, t2, t3, t4 = st.tabs(["Kanban", "Search", "Update Stage", "Update Price"])
+    t1, t2, t3 = st.tabs(["Kanban", "Search", "Update Price"])
     
     with t1: utils.tab1_kanban(sales_group, sales_name, is_super)
     with t2: utils.tab2_dashboard(sales_group, sales_name, is_super)
-    with t3: utils.tab3_update_stage(sales_group, sales_name, is_super)
-    with t4: utils.tab4_update_price(sales_group, sales_name, is_super)
+    with t3: utils.tab3_update_price(sales_group, sales_name, is_super)
 
 if st.session_state.group_info:
     main_app()

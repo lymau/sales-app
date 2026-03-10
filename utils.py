@@ -246,91 +246,7 @@ def tab2_dashboard(sales_group, sales_name, is_super):
         st.warning("Tidak ada data yang cocok dengan kombinasi filter di atas.")
 
 @st.fragment
-def tab3_update_stage(sales_group, sales_name, is_super):
-    st.header("Update Stage Process")
-    st.info("Pilih stage untuk update progres opportunity.")
-
-    # 1. Load Data Opportunity
-    df_opps = db.get_kanban_data(sales_group, sales_name, is_super)
-    
-    if df_opps.empty:
-        st.warning("Tidak ada data.")
-        return
-
-    # 2. Dropdown Pilih Opportunity
-    opp_dict = {f"{row['opportunity_name']}": row['opportunity_id'] for _, row in df_opps.iterrows()}
-    sorted_opp_list = sorted(opp_dict.keys())
-    sel_opp = st.selectbox("Pilih Opportunity", options=sorted_opp_list, index=None)
-    
-    if sel_opp:
-        oid = opp_dict[sel_opp]
-        curr_row = df_opps[df_opps['opportunity_id'] == oid].iloc[0]
-        
-        # Tampilkan Info Saat Ini
-        st.markdown("---")
-        c1, c2 = st.columns(2)
-        c1.write(f"**Current Stage:** `{curr_row['stage']}`")
-        c2.write(f"**Last Note:** {curr_row.get('sales_notes', '-')}")
-        
-        # 3. Form Update Status
-        st.subheader("Update Status")
-        
-        # Opsi Stage Standar
-        sales_stages = [ 
-            "Closed Won", "Closed Lost"
-        ]
-        
-        # Set Default Index
-        try: def_idx = sales_stages.index(curr_row['stage'])
-        except: def_idx = 0
-        
-        new_stg = st.selectbox("New Stage", sales_stages, index=def_idx)
-        
-        # 4. Input Notes (Satu untuk semua kondisi)
-        st.markdown("#### 📝 Stage Remarks")
-        sales_notes_val = st.text_area(
-            "Notes / Keterangan (Opsional)", 
-            value="", 
-            placeholder="Masukkan catatan terkait update stage ini...",
-            height=150
-        )
-
-        # 5. Tombol Eksekusi
-        if st.button("💾 Update Sales Stage", type="primary"):
-            with st.spinner("Updating..."):
-                # Panggil fungsi backend
-                res = db.update_stage_with_notification(
-                    opp_id=oid, 
-                    new_stage=new_stg, 
-                    notes=sales_notes_val, 
-                    user_actor=sales_name
-                )
-                
-                if res['status'] == 200:
-                    # A. Pesan Sukses Statis (Kotak Hijau)
-                    st.success(f"✅ BERHASIL: Opportunity telah diupdate ke {new_stg}!")
-                    
-                    # B. Pesan Toast (Melayang di pojok kanan atas) - Lebih modern
-                    st.toast(f"Data tersimpan! Status: {new_stg}", icon="💾")
-                    
-                    # C. Efek Visual Tambahan
-                    if new_stg == "Closed Won":
-                        st.balloons()
-                    elif new_stg == "Closed Lost":
-                        st.error("Opportunity marked as Lost.") # Pesan merah sebentar
-                    
-                    # D. TAHAN RERUN (Penting!)
-                    # Kita beri waktu 3 detik agar user sempat membaca pesan di atas
-                    time.sleep(3)
-                    
-                    # E. Reset & Rerun
-                    st.session_state.selected_kanban_opp_id = None
-                    st.rerun()
-                else:
-                    st.error(res['message'])
-
-@st.fragment
-def tab4_update_price(sales_group, sales_name, is_super):
+def tab3_update_price(sales_group, sales_name, is_super):
     st.header("Update Price per Item")
     st.info("💡 Edit angka pada kolom 'Selling Price' di dalam tabel secara langsung, lalu klik Simpan.")
 
@@ -415,10 +331,18 @@ def tab4_update_price(sales_group, sales_name, is_super):
                     for i in range(len(edit_df)):
                         old_p = edit_df.iloc[i]['selling_price']
                         new_p = edited_df.iloc[i]['selling_price']
-                        if old_p != new_p:
+                        
+                        # --- PERBAIKAN: Cast ke native float Python ---
+                        try:
+                            old_val = float(old_p) if pd.notnull(old_p) else 0.0
+                            new_val = float(new_p) if pd.notnull(new_p) else 0.0
+                        except ValueError:
+                            old_val, new_val = 0.0, 0.0
+                            
+                        if old_val != new_val:
                             changes.append({
-                                'uid': edited_df.iloc[i]['uid'],
-                                'selling_price': new_p
+                                'uid': str(edited_df.iloc[i]['uid']), 
+                                'selling_price': new_val # <-- Sekarang ini adalah native float
                             })
                     
                     if changes:
@@ -432,5 +356,3 @@ def tab4_update_price(sales_group, sales_name, is_super):
                                 st.error(res['message'])
                     else:
                         st.info("Tidak ada perubahan angka yang terdeteksi.")
-            else:
-                st.warning("Belum ada item solusi yang diinput Presales.")
