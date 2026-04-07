@@ -332,6 +332,46 @@ def update_line_item_prices(updates_list, user_name, opp_id, opp_name):
                             })
 
                 trans.commit()
+                try:
+                    # 1. Cari nama Presales dan Email-nya berdasarkan Opportunity ID
+                    email_q = text("""
+                        SELECT o.presales_name, p.email 
+                        FROM opportunities o
+                        JOIN presales p ON o.presales_name = p.presales_name
+                        WHERE o.opportunity_id = :oid
+                        LIMIT 1
+                    """)
+                    email_data = connection.execute(email_q, {"oid": clean_opp_id}).mappings().first()
+                    
+                    if email_data and email_data['email']:
+                        target_email = email_data['email']
+                        p_name = email_data['presales_name']
+                        
+                        # 2. Rangkai pesan sesuai instruksi
+                        subject = f"[Reminder] Update Cost/Solution: {clean_opp_name}"
+                        body_html = f"""
+                        <h3>📢 Notifikasi Harga Jual (Selling Price) Terupdate</h3>
+                        <p>Halo <b>{p_name}</b>,</p>
+                        <p>Data Entry (<b>{clean_user}</b>) baru saja menginput atau memperbarui <i>Selling Price</i> untuk Opportunity berikut:</p>
+                        <ul>
+                            <li><b>Opportunity Name:</b> {clean_opp_name}</li>
+                            <li><b>Opportunity ID:</b> {clean_opp_id}</li>
+                        </ul>
+                        <p style="padding: 10px; border-left: 4px solid #28a745; background-color: #f9f9f9;">
+                        <b>Pesan:</b><br>
+                        Jika ada <i>update cost</i> atau <i>update solution details</i> terkait penawaran harga ini, mohon bantu update di Presales App.
+                        </p>
+                        <br>
+                        <p><i>Terima kasih,<br>Krisa Kurniawan (via Sales App System)</i></p>
+                        """
+                        
+                        # 3. Kirim Email meminjam fungsi yang sudah ada
+                        send_email_notification(target_email, subject, body_html)
+                        
+                except Exception as email_err:
+                    print(f"⚠️ Gagal mengirim notifikasi email ke presales: {email_err}")
+                # =================================================================
+
                 return {"status": 200, "message": "Harga per item berhasil disimpan."}
             except Exception as e:
                 trans.rollback()
